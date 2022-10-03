@@ -1,0 +1,7 @@
+[db]
+user = ""
+password = ""
+dbpath = "/var/lib/firebird/2.5/data/A4ON_FREE.FDB"
+
+[xml]
+filename = "TV_Pack.xml"
