@@ -12,7 +12,7 @@ import (
 
 func check(err error) {
 	if err != nil {
-		log.Panic(err)
+		LOG.Panic(err)
 	}
 }
 
@@ -31,59 +31,67 @@ func cutStr(s string, maxLen int) string {
 }
 
 func main() {
-	log.Info("-- start --")
+	LOG.Info("-- start --")
 
-	log.Debug("process command line arguments")
+	LOG.Debug("process command line arguments")
 	fCfgPath := flag.String("c", "conf.toml", "path to conf file")
 	flag.Parse()
 
-	log.Debug("parse config file")
+	LOG.Debug("parse config file")
 	cfg, err := LoadConfig(*fCfgPath)
 	check(err)
 
-	log.Debugf("connect to db %s", cfg.Db.Dbpath)
+	LOG.Debugf("connect to db %s", cfg.Db.Dbpath)
 	dbConn, err := dbConnect(cfg.Db.User, cfg.Db.Password, cfg.Db.Dbpath)
 	check(err)
-	defer dbConn.Close()
+	defer func() {
+		if err := dbConn.Close(); err != nil {
+			LOG.Panic(err)
+		}
+	}()
 
-	log.Debug("get channels from epg_mapping")
+	LOG.Debug("get channels from epg_mapping")
 	epgMapping, err := getEpgMapping(dbConn)
 	check(err)
 	if len(epgMapping) < 1 {
-		log.Debug("table epg_mapping is empty")
+		LOG.Debug("table epg_mapping is empty")
 		return
 	}
-	log.Debugf("got %d records", len(epgMapping))
+	LOG.Debugf("got %d records", len(epgMapping))
 
-	log.Debugf("get programme from %s", cfg.Xml.FileName)
+	LOG.Debugf("get programme from %s", cfg.Xml.FileName)
 	xmlTv, err := readXml(cfg.Xml.FileName)
 	check(err)
 	if len(xmlTv.Programme) < 1 {
-		log.Debugf("%s has no programme records", cfg.Xml.FileName)
+		LOG.Debugf("%s has no programme records", cfg.Xml.FileName)
 		return
 	}
-	log.Debugf("got %d records", len(xmlTv.Programme))
+	LOG.Debugf("got %d records", len(xmlTv.Programme))
 
-	log.Debug("clear epg table")
+	LOG.Debug("clear epg table")
 	check(clearEpg(dbConn))
 	pb := progressbar.New(len(epgMapping))
 
 	dbTx, err := dbConn.Begin()
 	check(err)
-	defer dbTx.Rollback()
+	defer func() {
+		if err := dbTx.Rollback(); err != nil {
+			LOG.Panic(err)
+		}
+	}()
 
-	log.Debugf("xml -> db convert started")
+	LOG.Debugf("xml -> db convert started")
 	for _, chRec := range epgMapping {
 		for _, progRec := range xmlTv.getByChannel(chRec.EpgCode) {
 			timeStart, err := time.Parse("20060102150405 -0700", progRec.Start)
 			if err != nil {
-				log.Warningf("can't parse start time from %s", timeStart)
+				LOG.Warningf("can't parse start time from %s", timeStart)
 				continue
 			}
 
 			timeStop, err := time.Parse("20060102150405 -0700", progRec.Stop)
 			if err != nil {
-				log.Warningf("can't parse stop time from %s", timeStop)
+				LOG.Warningf("can't parse stop time from %s", timeStop)
 				continue
 			}
 
@@ -104,17 +112,22 @@ func main() {
 				Actors:      cutStr(strings.Join(progRec.Credits.Actors, ", "), 255),
 				Directed:    cutStr(strings.Join(progRec.Credits.Directors, ", "), 255),
 				Country:     cutStr(strings.Join(progRec.Countries, ", "), 255)}
-			// log.Debug(eRec)
+			// LOG.Debug(eRec)
 			check(addEpgRecord(dbTx, eRec))
 		}
-		pb.Add(1)
+		if err := pb.Add(1); err != nil {
+			LOG.Panic(err)
+		}
 	}
-	os.Stdout.WriteString("\n")
-	log.Debug("commit db changes")
-	dbTx.Commit()
-	pb.Finish()
+	if _, err = os.Stdout.WriteString("\n"); err != nil {
+		LOG.Panic(err)
+	}
+	LOG.Debug("commit db changes")
+	if err = dbTx.Commit(); err != nil {
+		LOG.Panic(err)
+	}
 
-	log.Debug("update epg_updated in dvb_network and dvb_streams")
+	LOG.Debug("update epg_updated in dvb_network and dvb_streams")
 	check(updDates(dbConn))
-	log.Info("-- done --")
+	LOG.Info("-- done --")
 }

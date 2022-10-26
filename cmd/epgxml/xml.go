@@ -50,7 +50,11 @@ func readXml(xmlFilePath string) (*Tv, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer fnFile.Close()
+	defer func() {
+		if err := fnFile.Close(); err != nil {
+			LOG.Panic(err)
+		}
+	}()
 
 	xmlRaw, _ := ioutil.ReadAll(fnFile)
 	var xmlTv Tv

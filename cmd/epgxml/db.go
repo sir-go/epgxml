@@ -64,7 +64,11 @@ func clearEpg(dbConn *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	defer dbTx.Rollback()
+	defer func() {
+		if err := dbTx.Rollback(); err != nil {
+			LOG.Panic(err)
+		}
+	}()
 
 	_, err = dbTx.Exec("delete from epg")
 	if err != nil {

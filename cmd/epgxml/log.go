@@ -8,10 +8,10 @@ import (
 
 const logFormat = `%{time:15:04:05.000} %{level:.1s}| %{message}`
 
-var log *logging.Logger
+var LOG *logging.Logger
 
 func initLogging(appName string) {
-	log = logging.MustGetLogger(appName)
+	LOG = logging.MustGetLogger(appName)
 	formatter := logging.MustStringFormatter(logFormat)
 	lb := logging.NewLogBackend(os.Stdout, "", 0)
 	lbf := logging.NewBackendFormatter(lb, formatter)
