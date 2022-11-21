@@ -10,13 +10,10 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: juarezr/firebirdsql-github-action@v1.2.0
-        with:
-          version: 'v3'
-          port: 43050
-          firebird_database: 'tests/testdata/a4on.fdb'
-          isc_password: 'masterkey'
       - uses: actions/checkout@v3
+      - uses: isbang/compose-action@v1.4.1
+        with:
+          compose-file: ".compose.yml"
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
