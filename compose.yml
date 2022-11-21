@@ -8,7 +8,7 @@ services:
       ISC_PASSWORD: masterkey
       TZ: Europe/Moscow
     volumes:
-      - ${PWD}/tests/testdata/a4on.fdb:/firebird/data/a4on.fdb
+      - ./tests/testdata/a4on.fdb:/firebird/data/a4on.fdb
     expose:
       - '3050'
     ports: ["43050:3050"]
