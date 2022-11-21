@@ -9,7 +9,7 @@ import (
 
 // alert: run local test fb3 server before
 
-const FbPort = 3050
+const FbPort = 43050
 
 func TestFormatDSN(t *testing.T) {
 	type args struct {
