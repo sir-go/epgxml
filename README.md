@@ -1,4 +1,5 @@
 # EPG converter from XML dump to local Firebird Database
+[![Go](https://github.com/sir-go/epgxml/actions/workflows/go.yml/badge.svg)](https://github.com/sir-go/epgxml/actions/workflows/go.yml)
 
 ## What it does
 - script `get_xml.sh` downloads an EPG XML dump from the EPG service site,
