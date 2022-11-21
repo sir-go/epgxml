@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  firebird-db:
+    image: jacobalberty/firebird:v3
+    container_name: firebird-db-test
+    environment:
+      ISC_PASSWORD: masterkey
+      TZ: Europe/Moscow
+    volumes:
+      - ./tests/testdata/a4on.fdb:/firebird/data/a4on.fdb
+    expose:
+      - '3050'
+    ports: ["43050:3050"]
+    networks: {net}
+
+networks: {net}

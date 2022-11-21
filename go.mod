@@ -3,9 +3,8 @@ module epgxml
 go 1.18
 
 require (
-	github.com/BurntSushi/toml v1.2.1
+	github.com/go-yaml/yaml v2.1.0+incompatible
 	github.com/nakagami/firebirdsql v0.9.4
-	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
 	github.com/schollz/progressbar v1.0.0
 )
 
@@ -17,5 +16,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
 	golang.org/x/text v0.3.5 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	modernc.org/mathutil v1.4.1 // indirect
 )
