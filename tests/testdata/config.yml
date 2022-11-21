@@ -1,0 +1,4 @@
+username: username-value
+password: password-value
+db_path: path-to-database
+dump_path: path-to-dump-xml

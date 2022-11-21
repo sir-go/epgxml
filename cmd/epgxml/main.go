@@ -2,132 +2,83 @@ package main
 
 import (
 	"flag"
-	"math"
-	"os"
-	"strings"
-	"time"
+	"log"
 
 	"github.com/schollz/progressbar"
+
+	"epgxml/internal/config"
+	"epgxml/internal/db"
+	"epgxml/internal/dump"
+	"epgxml/internal/utils"
 )
 
-func check(err error) {
-	if err != nil {
-		LOG.Panic(err)
-	}
-}
-
-func init() {
-	initLogging("epg-xml")
-}
-
-func cutStr(s string, maxLen int) string {
-	r := []rune(s)
-	if len(r) > maxLen {
-		return string(r[:maxLen])
-	} else {
-		return s
-
-	}
-}
-
 func main() {
-	LOG.Info("-- start --")
-
-	LOG.Debug("process command line arguments")
-	fCfgPath := flag.String("c", "conf.toml", "path to conf file")
+	log.Println("-- start --")
+	cfgPath := flag.String("c", "config.yml",
+		"path to config file")
 	flag.Parse()
 
-	LOG.Debug("parse config file")
-	cfg, err := LoadConfig(*fCfgPath)
-	check(err)
+	log.Println("fill the config")
+	cfg, err := config.Load(*cfgPath)
+	if err != nil {
+		panic(err)
+	}
 
-	LOG.Debugf("connect to db %s", cfg.Db.Dbpath)
-	dbConn, err := dbConnect(cfg.Db.User, cfg.Db.Password, cfg.Db.Dbpath)
-	check(err)
-	defer func() {
-		if err := dbConn.Close(); err != nil {
-			LOG.Panic(err)
-		}
-	}()
+	epgDb := db.New(
+		db.FormatDSN(
+			cfg.Host, cfg.Port, cfg.Username, cfg.Password, cfg.DbPath))
 
-	LOG.Debug("get channels from epg_mapping")
-	epgMapping, err := getEpgMapping(dbConn)
-	check(err)
+	log.Println("get channels from epg_mapping")
+	epgMapping, err := epgDb.GetMapping()
+	if err != nil {
+		panic(err)
+	}
+
 	if len(epgMapping) < 1 {
-		LOG.Debug("table epg_mapping is empty")
+		log.Println("table epg_mapping is empty")
 		return
 	}
-	LOG.Debugf("got %d records", len(epgMapping))
+	log.Println("got records:", len(epgMapping))
 
-	LOG.Debugf("get programme from %s", cfg.Xml.FileName)
-	xmlTv, err := readXml(cfg.Xml.FileName)
-	check(err)
+	log.Println("get programme from", cfg.DumpPath)
+	xmlTv, err := dump.Parse(cfg.DumpPath)
+	if err != nil {
+		panic(err)
+	}
+
 	if len(xmlTv.Programme) < 1 {
-		LOG.Debugf("%s has no programme records", cfg.Xml.FileName)
+		log.Println(cfg.DumpPath, "has no programme records")
 		return
 	}
-	LOG.Debugf("got %d records", len(xmlTv.Programme))
+	log.Println("got records:", len(xmlTv.Programme))
 
-	LOG.Debug("clear epg table")
-	check(clearEpg(dbConn))
+	log.Println("clear epg table")
+	if err != nil {
+		panic(err)
+	}
+
 	pb := progressbar.New(len(epgMapping))
 
-	dbTx, err := dbConn.Begin()
-	check(err)
-	defer func() {
-		if err := dbTx.Rollback(); err != nil {
-			LOG.Panic(err)
-		}
-	}()
-
-	LOG.Debugf("xml -> db convert started")
+	log.Println("xml -> db convert started")
+	dbRecords := make([]db.Record, 0)
 	for _, chRec := range epgMapping {
-		for _, progRec := range xmlTv.getByChannel(chRec.EpgCode) {
-			timeStart, err := time.Parse("20060102150405 -0700", progRec.Start)
-			if err != nil {
-				LOG.Warningf("can't parse start time from %s", timeStart)
-				continue
-			}
-
-			timeStop, err := time.Parse("20060102150405 -0700", progRec.Stop)
-			if err != nil {
-				LOG.Warningf("can't parse stop time from %s", timeStop)
-				continue
-			}
-
-			eRec := &Epg{
-				ChId:        chRec.ChId,
-				EpgDate:     timeStart.Local(),
-				UtcDate:     timeStart,
-				DateStart:   timeStart.Local(),
-				DateStop:    timeStop.Local(),
-				UtcStart:    timeStart,
-				UtcStop:     timeStop,
-				Duration:    int(math.Round(timeStop.Sub(timeStart).Minutes())),
-				Title:       cutStr(progRec.Title, 255),
-				Description: cutStr(strings.Join([]string{progRec.SubTitle, progRec.Desc}, " "), 4096),
-				Genres:      cutStr(strings.Join(progRec.Categories, ", "), 255),
-				MinAge:      progRec.Rating.Value,
-				CreateYear:  cutStr(progRec.Year, 255),
-				Actors:      cutStr(strings.Join(progRec.Credits.Actors, ", "), 255),
-				Directed:    cutStr(strings.Join(progRec.Credits.Directors, ", "), 255),
-				Country:     cutStr(strings.Join(progRec.Countries, ", "), 255)}
-			// LOG.Debug(eRec)
-			check(addEpgRecord(dbTx, eRec))
-		}
+		dbRecords = append(dbRecords,
+			utils.GenDbRecords(chRec.ChId, xmlTv.ByChanCode(chRec.EpgCode))...)
 		if err := pb.Add(1); err != nil {
-			LOG.Panic(err)
+			log.Println(err)
 		}
 	}
-	if _, err = os.Stdout.WriteString("\n"); err != nil {
-		LOG.Panic(err)
-	}
-	LOG.Debug("commit db changes")
-	if err = dbTx.Commit(); err != nil {
-		LOG.Panic(err)
+	log.Println("done")
+
+	log.Println("insert data to db...")
+	if err = epgDb.AddMany(dbRecords); err != nil {
+		panic(err)
 	}
 
-	LOG.Debug("update epg_updated in dvb_network and dvb_streams")
-	check(updDates(dbConn))
-	LOG.Info("-- done --")
+	log.Println("update epg_updated in dvb_network and dvb_streams")
+	if err = epgDb.Touch(); err != nil {
+		log.Println(err)
+	}
+
+	log.Println("-- done --")
 }

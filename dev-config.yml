@@ -1,0 +1,6 @@
+username: sysdba
+password: masterkey
+db_path: /firebird/data/a4on.fdb
+dump_path: tests/testdata/TV_Pack.xml
+host: localhost
+port: 43050
